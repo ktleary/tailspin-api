@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "target": "ES2020", // or your desired ECMAScript target version
+    "module": "CommonJS", // Use CommonJS modules for output because Node.js uses CommonJS
+    "esModuleInterop": true, // Enables better compatibility between ES Modules and CommonJS
+    "outDir": "./dist" // Where the transpiled JS files will go
+  },
+  "include": [
+    "src/**/*.ts" // If your source files are in the 'src' directory
+  ]
+}
