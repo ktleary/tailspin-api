@@ -82,7 +82,7 @@ async function generateStory(prompt: string) {
         { role: "user", content: prompt },
       ],
       temperature: 0.9,
-      max_tokens: 2000,
+      max_tokens: 4000,
     });
 
     const story = response.choices[0]?.message?.content;
@@ -130,7 +130,7 @@ app.post("/api/v1/create-story", async (req: Request, res: Response) => {
     ?.join("\n");
 
   const prompt = `
-    Write a short story for a PG-13 audience using the following elements:
+    Write a complete short story of about 800 words for a PG-13 audience using the following elements. Give it a real ending; do not trail off.
 
     Title: ${theme}
     Location: ${location} 
@@ -142,7 +142,7 @@ app.post("/api/v1/create-story", async (req: Request, res: Response) => {
     ${charactersDetails}
 
 
-    Use a narrative style of "${tone}" and a plot involving: "${plotPoint}".  Employ witty dialogue and detailed inner monologues when appropriate. Create vivid descriptions of the characters and setting. The story should end on a ${ending} note. Feel free to inject literary devices including Foreshadowing, Hyperbole, Oxymoron, Flashback, Dramatic Irony, Metaphor, Epigraph, as well as plot twists, and surprize endings. Finally, tag the story with 3 hashtags.
+    Use a narrative style of "${tone}" and a plot involving: "${plotPoint}". Employ witty dialogue and detailed inner monologues when appropriate. Create vivid descriptions of the characters and setting. The story should end on a ${ending} note. Literary devices such as foreshadowing, metaphor, or a plot twist may be used when they serve the story.
   `;
 
   try {
