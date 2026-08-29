@@ -1,9 +1,8 @@
 import express from "express";
 import OpenAI from "openai";
-import { openaiApiKey, port } from "../config";
+import { openrouterApiKey, openrouterModel, port } from "../config";
 import cors from "cors";
 import { Request, Response } from "express";
-import { verifyRequest } from "./verify-request";
 
 interface Character {
   givenName: string;
@@ -24,46 +23,69 @@ interface Story {
   tone: string;
 }
 
-interface CompletionParams {
-  model: string;
-  prompt: string;
-  temperature: number;
-  max_tokens: number;
+const RATE_LIMIT_PER_HOUR = 10;
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+const requestCounts = new Map<string, { count: number; resetAt: number }>();
+
+function clientIp(req: Request): string {
+  return req.ip || req.socket.remoteAddress || "unknown";
+}
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const record = requestCounts.get(ip);
+
+  if (!record || now > record.resetAt) {
+    requestCounts.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return false;
+  }
+
+  if (record.count >= RATE_LIMIT_PER_HOUR) {
+    return true;
+  }
+
+  record.count += 1;
+  return false;
 }
 
 const app = express();
-app.use(cors());
+app.use(
+  cors({
+    origin: [
+      "https://tailspin.fun",
+      "https://www.tailspin.fun",
+      "http://localhost:8080",
+      "http://localhost:3000",
+    ],
+  })
+);
 app.use(express.json());
 
 const openai = new OpenAI({
-  apiKey: openaiApiKey,
+  baseURL: "https://openrouter.ai/api/v1",
+  apiKey: openrouterApiKey,
+  defaultHeaders: {
+    "HTTP-Referer": "https://tailspin.fun",
+    "X-Title": "Tailspin",
+  },
 });
-
-// models page: https://platform.openai.com/docs/models/gpt-3-5
-const models = {
-  "35Turbo1106": "gpt-3.5-turbo-1106",
-  "35Turbo": "gpt-3.5-turbo",
-  "35Turbo16k": "gpt-3.5-turbo-16k",
-  "35TurboInstruct": "gpt-3.5-turbo-instruct",
-  GPT4: "gpt-4",
-};
-
-const modelToUse = models["35TurboInstruct"];
 
 async function generateStory(prompt: string) {
   try {
-    const completionParams: CompletionParams = {
-      model: modelToUse,
-      prompt: prompt,
+    const response = await openai.chat.completions.create({
+      model: openrouterModel,
+      messages: [
+        {
+          role: "system",
+          content: "You write short PG-13 stories from the given story elements.",
+        },
+        { role: "user", content: prompt },
+      ],
       temperature: 0.9,
       max_tokens: 2000,
-    };
+    });
 
-    const response: OpenAI.Completion = await openai.completions.create(
-      completionParams
-    );
-
-    const story = response.choices[0].text;
+    const story = response.choices[0]?.message?.content;
     return story;
   } catch (error) {
     console.error(`Error generating story: ${error.name} ${error.message}`);
@@ -72,10 +94,8 @@ async function generateStory(prompt: string) {
 }
 
 app.post("/api/v1/create-story", async (req: Request, res: Response) => {
-  const verified = verifyRequest(req);
-
-  if (!verified) {
-    return res.status(400).json({ msg: "Bad request" });
+  if (isRateLimited(clientIp(req))) {
+    return res.status(429).json({ msg: "Too many requests" });
   }
 
   const story: Story = req.body.story;
@@ -131,7 +151,7 @@ app.post("/api/v1/create-story", async (req: Request, res: Response) => {
     if (response) {
       return res.status(200).json({ story: response });
     } else {
-      throw new Error("No response was returned from OpenAI GPT-4");
+      throw new Error("No response was returned from the model");
     }
   } catch (error) {
     console.error(`Error generating story: ${error.name} ${error.message}`);
