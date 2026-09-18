@@ -138,19 +138,23 @@ app.post("/api/v1/create-story", async (req: Request, res: Response) => {
     ?.join("\n");
 
   const prompt = `
-    Write a complete short story of about 800 words for a PG-13 audience using the following elements. Give it a real ending; do not trail off.
+Write a complete short story of about 800 words for a PG-13 audience, using every element below. Give it a real ending — do not trail off.
 
-    Title: ${theme}
-    Location: ${location} 
-    Time: ${time} 
-    Conflict: ${conflict}
-    Ending: ${ending}
-    Tone: ${tone}
-    Plot Point: ${plotPoint}
-    ${charactersDetails}
+Title: ${theme}
+Location: ${location}
+Time: ${time}
+Conflict: ${conflict}
+Ending: ${ending}
+Tone: ${tone}
+Plot Point: ${plotPoint}
 
+${charactersDetails}
 
-    Use a narrative style of "${tone}" and a plot involving: "${plotPoint}". Employ witty dialogue and detailed inner monologues when appropriate. Create vivid descriptions of the characters and setting. The story should end on a ${ending} note. Literary devices such as foreshadowing, metaphor, or a plot twist may be used when they serve the story.
+Style guidance:
+- Match the narrative voice, dialogue register, and pacing to the tone: "${tone}". Do not default to wit or playfulness unless the tone calls for it.
+- Let the conflict build through the rising action and drive the ${ending} ending — the elements above are constraints, not decorations.
+- Ground scenes in concrete sensory detail; description in service of the story, not display.
+- Use literary devices (foreshadowing, metaphor, twist) only when they serve the story.
   `;
 
   try {
