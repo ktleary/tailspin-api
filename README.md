@@ -1,17 +1,20 @@
 # Tailspin API
 
-## Overview
+Backend for [tailspin.fun](https://tailspin.fun/) — generates short stories from a user-assembled outline.
 
-Tailspin is a web application that generates short stories from user input. This repository contains the API for the Tailspin application.
+## Architecture
 
-## API Documentation
+1. The client sends a **partial story** (theme, characters, tone, ending, …) plus a candidate pool to `POST /api/v1/rank-suggestions`.
+2. One [Jev](https://docs.typesafe.ai) (`jev-latest`) call scores those candidates for coherence with the outline (Score for characters/tone/etc., Noul for endings) and the API **samples top-k from the score distribution** (not argmax).
+3. The user picks from those ranked suggestions.
+4. `POST /api/v1/create-story` sends the full `Story` to an OpenAI-compatible endpoint. The prompt treats every field as a constraint and matches voice/pacing to **tone** (no default wit).
 
-- create-story
-  - POST
-  - /api/v1/create-story
-  - Creates a new story
-  - Request Body: Story
-    - Response Body: Story
+If Jev is down, times out (>3s), or the key is missing, rank-suggestions still returns HTTP 200 with `degraded: true` and a random sample so the client can fall back.
+
+## API
+
+- `POST /api/v1/create-story` — body `{ story: Story }` → `{ story: string }`
+- `POST /api/v1/rank-suggestions` — body `{ story: Partial<Story>, field: string, candidates: string[] }` → `{ ranked, sampled, degraded }`
 
 ## Models
 
@@ -42,49 +45,23 @@ interface Story {
 }
 ```
 
-## Dependencies
-
-- Express
-- OpenAI
-- Cors
-
 ## Getting Started
 
-To get started with Tailspin, clone this repository and install its dependencies:
-
 ```bash
-git clone
+git clone git@github.com:ktleary/tailspin-api.git
 cd tailspin-api
-npm install
+yarn install
 ```
 
-To run Tailspin locally:
+Env (see `.env.example`): `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `PORT`, `TYPESAFE_API_KEY`.
 
 ```bash
-npm start
+yarn build
+node dist/src/app.js
 ```
 
-This will start the application on localhost:3001 (or your default Express port).
-
-## Building for Production
-
-To build the application for production:
-
-```bash
-npm run build
-```
-
-This will create a build folder with a production build of the application.
-
-## Contributing
-
-Contributions to Tailspin are welcome! Whether it's submitting a bug, proposing new features, or improving documentation, your input is highly appreciated.
-
-- Fork the repository.
-- Create a new branch with a descriptive name.
-- Make your changes.
-- Submit a pull request.
+Default port is 3000 (`PORT`).
 
 ## License
 
-Tailspin is open-source software licensed under the GPL-3.0-or-later license.
+GPL-3.0-or-later.
