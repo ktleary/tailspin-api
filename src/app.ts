@@ -3,6 +3,14 @@ import OpenAI from "openai";
 import { openrouterApiKey, openrouterModel, port } from "../config";
 import cors from "cors";
 import { Request, Response } from "express";
+import { callJev } from "./jev/client";
+import {
+  buildJevRequest,
+  fallbackSample,
+  rankFromAnswers,
+  sampleTopK,
+} from "./jev/rank";
+import { SAMPLE_K } from "./jev/questions";
 
 interface Character {
   givenName: string;
@@ -161,8 +169,46 @@ app.post("/api/v1/create-story", async (req: Request, res: Response) => {
   }
 });
 
-// Start the server
-const PORT = port || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+app.post("/api/v1/rank-suggestions", async (req: Request, res: Response) => {
+  const field = req.body?.field;
+  const candidates: unknown = req.body?.candidates;
+  const story = req.body?.story || {};
+  if (!field || typeof field !== "string") {
+    return res.status(400).json({ msg: "field required" });
+  }
+  if (!Array.isArray(candidates) || candidates.length === 0) {
+    return res.status(400).json({ msg: "candidates required" });
+  }
+  const list = candidates.map((c) => String(c));
+  try {
+    const jevReq = buildJevRequest({ story, field, candidates: list });
+    const answers = await callJev(jevReq);
+    const ranked = rankFromAnswers(list, answers);
+    const sampled = sampleTopK(ranked, SAMPLE_K);
+    return res.status(200).json({ ranked, sampled, degraded: false });
+  } catch (error) {
+    console.error(`rank-suggestions fallback: ${(error as Error).message}`);
+    const sampled = fallbackSample(list, SAMPLE_K);
+    const ranked = list.map((candidate) => ({
+      candidate,
+      score: 0,
+      confidence: 0,
+      probabilities: {},
+    }));
+    return res.status(200).json({
+      ranked,
+      sampled,
+      degraded: true,
+      reason: (error as Error).message,
+    });
+  }
 });
+
+const PORT = port || 3000;
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
+
+export default app;
